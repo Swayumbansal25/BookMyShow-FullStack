@@ -11,7 +11,6 @@ const MovieDetails = () => {
     useEffect(() => {
         const fetchMovieDetails = async () => {
             try {
-                // Fetching specific movie details by ID from your Movies API
                 const response = await axiosInstance.get(`/Movies/${id}`);
                 setMovie(response.data);
             } catch (error) {
@@ -39,18 +38,34 @@ const MovieDetails = () => {
     return (
         <div className="min-h-screen bg-white">
             {/* Movie Hero Section */}
-            <div className="relative h-[55vh] bg-[#1A1C24] flex items-center justify-center overflow-hidden">
-                {/* Background Decoration */}
-                <div className="absolute inset-0 opacity-10 flex items-center justify-center text-[250px] select-none">🎬</div>
+            <div className="relative h-[65vh] bg-[#1A1C24] flex items-center justify-center overflow-hidden">
+                {/* Background Decoration - Now using the movie poster as a blurred background */}
+                <div className="absolute inset-0 opacity-20">
+                    <img 
+                        src={movie.movieImage} 
+                        alt="" 
+                        className="w-full h-full object-cover blur-2xl scale-110"
+                    />
+                </div>
                 
                 {/* Content Overlay */}
                 <div className="relative z-10 max-w-6xl w-full px-10 flex flex-col md:flex-row gap-12 items-end">
-                    {/* Poster Placeholder */}
-                    <div className="w-64 h-96 bg-[#252833] rounded-2xl shadow-2xl border-4 border-white/5 flex flex-col items-center justify-center text-gray-700 mb-[-120px] hidden md:flex shrink-0 group">
-                        <span className="text-5xl mb-4 group-hover:scale-110 transition-transform">🎞️</span>
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] px-8 text-center leading-loose">
-                            {movie.movieName}
-                        </span>
+                    {/* Poster Image Section */}
+                    <div className="w-64 h-96 bg-[#252833] rounded-2xl shadow-2xl border-4 border-white/5 overflow-hidden mb-[-120px] hidden md:block shrink-0 group">
+                        {movie.movieImage ? (
+                            <img 
+                                src={movie.movieImage} 
+                                alt={movie.movieName}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-700">
+                                <span className="text-5xl mb-4">🎞️</span>
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] px-8 text-center leading-loose">
+                                    {movie.movieName}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex-grow pb-12">
@@ -84,7 +99,6 @@ const MovieDetails = () => {
 
             {/* Main Content Layout */}
             <div className="max-w-6xl mx-auto px-10 pt-40 pb-24 flex flex-col lg:flex-row gap-20">
-                {/* Left Side: About */}
                 <div className="flex-grow">
                     <h2 className="text-2xl font-black text-gray-900 uppercase mb-8 tracking-tight flex items-center gap-3">
                         About the movie
@@ -115,7 +129,6 @@ const MovieDetails = () => {
                     </div>
                 </div>
 
-                {/* Right Side: Booking Sidebar */}
                 <div className="w-full lg:w-80 shrink-0">
                     <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-gray-50 sticky top-10">
                         <div className="mb-10 text-center lg:text-left">
@@ -126,13 +139,12 @@ const MovieDetails = () => {
                             </p>
                         </div>
                         
-                        
                         <button 
-                      onClick={() => navigate(`/booking/${movie.movieId}`)} // REMOVED the '/1'
-                      className="w-full bg-[#F84464] text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-[#d63a56] transition-all shadow-xl hover:shadow-[#f8446444] active:scale-95 mb-6"
-                       >
-                       Book Tickets
-                    </button>
+                            onClick={() => navigate(`/booking/${movie.movieId}`)} 
+                            className="w-full bg-[#F84464] text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-[#d63a56] transition-all shadow-xl hover:shadow-[#f8446444] active:scale-95 mb-6"
+                        >
+                            Book Tickets
+                        </button>
                         
                         <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
                             <span className="text-green-500">✔</span> Flexible Cancellation

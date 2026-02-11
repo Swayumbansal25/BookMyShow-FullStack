@@ -12,11 +12,7 @@ const SeatSelection = () => {
     useEffect(() => {
         const fetchSeats = async () => {
             try {
-                // Fetch the seat status with a timestamp to avoid stale data
                 const response = await axiosInstance.get(`/ShowSeats/show/${showId}?t=${Date.now()}`);
-                console.log("ShowSeats API Response:", response.data);
-                
-                // CRITICAL FIX: Sort by seatNumber to ensure the grid starts from 1, 2, 3...
                 const sortedSeats = (response.data || []).sort((a, b) => a.seatNumber - b.seatNumber);
                 setSeats(sortedSeats);
             } catch (error) {
@@ -28,11 +24,19 @@ const SeatSelection = () => {
         fetchSeats();
     }, [showId]);
 
-    const toggleSeat = (seatId) => {
-        if (selectedSeats.includes(seatId)) {
-            setSelectedSeats(selectedSeats.filter(id => id !== seatId));
+    // Grouping seats into rows of 10 for professional labeling
+    const seatsPerRow = 10;
+    const rows = [];
+    for (let i = 0; i < seats.length; i += seatsPerRow) {
+        rows.push(seats.slice(i, i + seatsPerRow));
+    }
+
+    const toggleSeat = (seat) => {
+        const isSelected = selectedSeats.some(s => s.showSeatId === seat.showSeatId);
+        if (isSelected) {
+            setSelectedSeats(selectedSeats.filter(s => s.showSeatId !== seat.showSeatId));
         } else {
-            setSelectedSeats([...selectedSeats, seatId]);
+            setSelectedSeats([...selectedSeats, seat]);
         }
     };
 
@@ -44,79 +48,75 @@ const SeatSelection = () => {
     );
 
     return (
-        <div className="min-h-screen bg-gray-100 p-6 md:p-10">
-            <div className="max-w-4xl mx-auto bg-white p-8 rounded-3xl shadow-xl">
-                <div className="flex justify-between items-center mb-12">
-                    <button 
-                        onClick={() => navigate(-1)} 
-                        className="text-gray-400 hover:text-black font-bold text-sm transition-colors"
-                    >
-                        ← BACK
-                    </button>
-                    <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">
-                        SELECT <span className="text-[#F84464]">YOUR SEATS</span>
-                    </h2>
+        <div className="min-h-screen bg-gray-100 p-4 md:p-10">
+            <div className="max-w-5xl mx-auto bg-white p-6 md:p-10 rounded-[3rem] shadow-xl">
+                <div className="flex justify-between items-center mb-10">
+                    <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-black font-black text-[10px] uppercase tracking-widest">← Back</button>
+                    <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Choose <span className="text-[#F84464]">Seats</span></h2>
                     <div className="w-10"></div>
                 </div>
-                
-                {/* Screen Indicator */}
-                <div className="relative mb-20 text-center">
-                    <div className="w-full h-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase mt-2 tracking-[0.4em]">All eyes this way</p>
+
+                <div className="relative mb-16 text-center">
+                    <div className="w-full h-2 bg-gray-100 rounded-full mb-2"></div>
+                    <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.5em]">Screen This Way</p>
                 </div>
 
-                {/* Seat Grid */}
-                <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-4 justify-center mb-16">
-                    {seats.map(seat => {
-                        const isSold = seat.status === "Booked"; 
-                        const isSelected = selectedSeats.includes(seat.showSeatId);
-
+                {/* Grid with Row Labels */}
+                <div className="flex flex-col gap-4 mb-12 overflow-x-auto pb-4">
+                    {rows.map((rowSeats, rowIndex) => {
+                        const rowLabel = String.fromCharCode(65 + rowIndex); // A, B, C...
                         return (
-                            <button
-                                key={seat.showSeatId}
-                                disabled={isSold}
-                                onClick={() => toggleSeat(seat.showSeatId)}
-                                className={`w-10 h-10 rounded-lg text-[11px] font-bold transition-all duration-200 flex items-center justify-center
-                                    ${isSold 
-                                        ? 'bg-gray-200 cursor-not-allowed text-gray-400 border-none opacity-60' 
-                                        : isSelected 
-                                            ? 'bg-[#F84464] text-white shadow-lg scale-110 z-10' 
-                                            : 'bg-white border-2 border-green-500 text-green-600 hover:bg-green-500 hover:text-white'}`}
-                            >
-                                {/* UPDATED: Always use seatNumber so every Audi starts from 1 */}
-                                {seat.seatNumber}
-                            </button>
+                            <div key={rowLabel} className="flex items-center gap-4 min-w-max justify-center">
+                                <span className="w-6 text-[11px] font-black text-gray-300">{rowLabel}</span>
+                                <div className="flex gap-3">
+                                    {rowSeats.map((seat, colIndex) => {
+                                        const seatLabel = `${rowLabel}${colIndex + 1}`; // A1, A2...
+                                        const isSold = seat.status === "Booked";
+                                        const isSelected = selectedSeats.some(s => s.showSeatId === seat.showSeatId);
+
+                                        return (
+                                            <button
+                                                key={seat.showSeatId}
+                                                disabled={isSold}
+                                                onClick={() => toggleSeat({ ...seat, seatLabel })}
+                                                className={`w-9 h-9 rounded-lg text-[10px] font-black transition-all duration-300 border-2
+                                                    ${isSold ? 'bg-gray-100 border-transparent text-gray-300 cursor-not-allowed' 
+                                                    : isSelected ? 'bg-[#F84464] border-[#F84464] text-white shadow-lg shadow-[#f8446444] -translate-y-1' 
+                                                    : 'bg-white border-green-500/20 text-green-600 hover:border-green-500 hover:bg-green-50'}`}
+                                            >
+                                                {colIndex + 1}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         );
                     })}
                 </div>
 
-                {/* Legend */}
-                <div className="flex flex-wrap justify-center gap-8 py-8 border-t border-gray-100 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 border-2 border-green-500 rounded-md"></div> Available
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 bg-[#F84464] rounded-md shadow-sm"></div> Selected
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 bg-gray-200 rounded-md"></div> Sold
-                    </div>
+                {/* Status Legend */}
+                <div className="flex justify-center gap-10 py-6 border-t border-gray-50 text-[9px] font-black uppercase text-gray-400">
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 border-2 border-green-500/20 rounded-sm"></div> Available</div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#F84464] rounded-sm"></div> Selected</div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-gray-100 rounded-sm"></div> Sold</div>
                 </div>
 
-                {/* Final Booking Action Bar */}
+                {/* Floating Confirmation Bar */}
                 {selectedSeats.length > 0 && (
-                    <div className="mt-8 bg-gray-50 -mx-8 -mb-8 p-8 flex flex-col md:flex-row justify-between items-center rounded-b-3xl border-t border-gray-200">
+                    <div className="mt-10 bg-gray-900 text-white p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="mb-4 md:mb-0 text-center md:text-left">
-                            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Total Selection</p>
-                            <p className="text-2xl font-black text-gray-800">
-                                {selectedSeats.length} {selectedSeats.length === 1 ? 'Seat' : 'Seats'}
-                            </p>
+                            <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Seats Selected</p>
+                            <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                                {selectedSeats.map(s => (
+                                    <span key={s.showSeatId} className="bg-white/10 px-3 py-1 rounded-md text-xs font-black text-[#F84464]">{s.seatLabel}</span>
+                                ))}
+                            </div>
                         </div>
                         <button 
                             onClick={() => navigate(`/payment/${showId}`, { state: { selectedSeats } })}
-                            className="w-full md:w-auto bg-[#F84464] text-white px-16 py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-[#d63a56] transition-all shadow-xl hover:shadow-[#f8446444] active:scale-95"
+                            className="bg-[#F84464] px-12 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#d63a56] transition-all active:scale-95 shadow-xl shadow-[#f8446444]"
                         >
-                            Confirm Selection
+                            Proceed to Pay ₹{selectedSeats.length * 250}
                         </button>
                     </div>
                 )}
