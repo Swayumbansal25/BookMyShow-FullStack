@@ -14,12 +14,16 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
-    // 1. Configure CORS
+   // 1. Configure CORS (Allows local dev and live Vercel origins)
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowFrontend", policy =>
         {
-            policy.WithOrigins("http://localhost:5173", "http://localhost:3000") // Added 3000 as a backup
+            policy.WithOrigins(
+                      "http://localhost:5173", 
+                      "http://localhost:3000",
+                      "https://book-my-show-full-stack.vercel.app"
+                  ) 
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         });
