@@ -53,7 +53,20 @@ try
         }
     });
 
+    // Add CORS Policy to allow Vercel Frontend requests
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowVercelFrontend",
+        policy =>
+        {
+            policy.WithOrigins("https://book-my-show-full-stack.vercel.app")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        });
+});
+
     var app = builder.Build();
+    app.UseCors("AllowVercelFrontend");
 
     // 2. Enable Serilog request logging
     app.UseSerilogRequestLogging(options =>
