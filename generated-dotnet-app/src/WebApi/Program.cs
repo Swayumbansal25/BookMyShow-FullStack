@@ -2,6 +2,8 @@ using BookMyShow.Application.Extensions;
 using BookMyShow.Infrastructure.Extensions;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
+using System.Net;
+using System.Text.Json;
 using BookMyShow.WebApi.Configuration;
 using BookMyShow.WebApi.Middleware;
 using Serilog;
@@ -14,29 +16,29 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
-   // 1. Configure CORS (Allows local dev and live Vercel origins)
+    // 1. Configure a single CORS policy (local dev + live Vercel origin)
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowFrontend", policy =>
         {
             policy.WithOrigins(
-                      "http://localhost:5173", 
-                      "http://localhost:3000",
-                      "https://book-my-show-full-stack.vercel.app"
-                  ) 
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
+                        "http://localhost:5173",
+                        "http://localhost:3000",
+                        "https://book-my-show-full-stack.vercel.app"
+                    )
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
         });
     });
 
     // Configure Serilog
     SerilogConfiguration.ConfigureSerilog(builder);
 
-    // 🔹 Register Clean Architecture layers
+    // Register Clean Architecture layers
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddApplication();
 
-    // 🔹 ASP.NET Core services
+    // ASP.NET Core services
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
 
@@ -57,22 +59,38 @@ try
         }
     });
 
-    // Add CORS Policy to allow Vercel Frontend requests
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowVercelFrontend",
-        policy =>
-        {
-            policy.WithOrigins("https://book-my-show-full-stack.vercel.app")
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        });
-});
-
     var app = builder.Build();
-    app.UseCors("AllowVercelFrontend");
 
-    // 2. Enable Serilog request logging
+    // 2. Global exception handler — MUST be one of the first things registered so
+    //    that even unhandled exceptions produce a response with CORS headers attached,
+    //    instead of a bare 500 that the browser misreports as a CORS failure.
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.ContentType = "application/json";
+            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+
+            var exceptionHandlerPathFeature =
+                context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+            var exception = exceptionHandlerPathFeature?.Error;
+
+            if (exception != null)
+            {
+                Log.Error(exception, "Unhandled exception on {Path}", exceptionHandlerPathFeature?.Path);
+            }
+
+            var payload = JsonSerializer.Serialize(new
+            {
+                error = "An unexpected error occurred.",
+                detail = app.Environment.IsDevelopment() ? exception?.Message : null
+            });
+
+            await context.Response.WriteAsync(payload);
+        });
+    });
+
+    // 3. Serilog request logging
     app.UseSerilogRequestLogging(options =>
     {
         options.MessageTemplate =
@@ -84,10 +102,10 @@ builder.Services.AddCors(options =>
                 : Serilog.Events.LogEventLevel.Information;
     });
 
-    // 🔹 Custom middleware
+    // 4. Custom middleware
     app.UseCorrelationId();
 
-    // 🔹 Swagger (Always available for testing)
+    // 5. Swagger (always available for testing)
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
@@ -95,14 +113,21 @@ builder.Services.AddCors(options =>
         c.RoutePrefix = string.Empty;
     });
 
-    // 3. IMPORTANT: Middleware Pipeline Order
-    app.UseHttpsRedirection();
+    if (!app.Environment.IsDevelopment())
+    {
+        if (app.Environment.EnvironmentName != "Production")
+        {
+            app.UseHttpsRedirection();
+        }
+    }
+
+    // 6. Correct required order: Routing -> Cors -> Authorization -> Endpoints
     app.UseRouting();
 
-    // CORS MUST be between UseRouting and MapControllers
-    app.UseCors("AllowFrontend"); 
+    app.UseCors("AllowFrontend");
 
     app.UseAuthorization();
+
     app.MapControllers();
 
     Log.Information("Application started successfully");

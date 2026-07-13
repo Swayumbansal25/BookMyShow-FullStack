@@ -2,6 +2,8 @@ using BookMyShow.Core.Entities.Core;
 using BookMyShow.Core.Interfaces.Core;
 using Dapper;
 using Npgsql;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace BookMyShow.Infrastructure.Data.Core
 {
@@ -49,7 +51,52 @@ namespace BookMyShow.Infrastructure.Data.Core
         public async Task<Booking?> GetByIdAsync(long id)
         {
             using var conn = new NpgsqlConnection(_connectionString);
-            return await conn.QueryFirstOrDefaultAsync<Booking>("SELECT * FROM bookings WHERE booking_id = @id", new { id });
+
+            // Note: booked_seats only has (booking_id, seat_id, price) - no surrogate key column.
+            // We intentionally don't alias s.booking_id, since Dapper's multi-mapping splits on
+            // the first column of the second type, and reusing "BookingId" for both types here
+            // would create an ambiguous split point. seat_id/price come back null on the LEFT
+            // JOIN if a booking has zero seats, which we filter out below.
+            var sql = @"
+                SELECT b.booking_id AS BookingId, b.user_id AS UserId, b.show_id AS ShowId, 
+                       b.total_amount AS TotalAmount, b.booking_time AS BookingTime, b.status AS Status,
+                       s.seat_id AS SeatId, s.price AS Price
+                FROM bookings b
+                LEFT JOIN booked_seats s ON b.booking_id = s.booking_id
+                WHERE b.booking_id = @id";
+
+            Booking? bookingEntry = null;
+            var seatsCollector = new List<BookedSeat>();
+
+            await conn.QueryAsync<Booking, BookedSeat, Booking>(
+                sql,
+                (booking, bookedSeat) =>
+                {
+                    if (bookingEntry == null)
+                    {
+                        bookingEntry = booking;
+                    }
+
+                    // LEFT JOIN with no matching seats still produces a BookedSeat with
+                    // default values (SeatId = 0) - skip those instead of collecting them.
+                    if (bookedSeat != null && bookedSeat.SeatId != 0)
+                    {
+                        bookedSeat.BookingId = bookingEntry.BookingId;
+                        seatsCollector.Add(bookedSeat);
+                    }
+
+                    return bookingEntry;
+                },
+                new { id },
+                splitOn: "SeatId"
+            );
+
+            if (bookingEntry != null)
+            {
+                bookingEntry.BookedSeats = seatsCollector;
+            }
+
+            return bookingEntry;
         }
 
         public async Task<IEnumerable<Booking>> GetByUserIdAsync(long userId)
